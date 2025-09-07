@@ -1,29 +1,45 @@
 {
   "expo": {
     "name": "SpotMe",
-    "slug": "SpotMe",
+    "slug": "spotme",
+    "extra": {
+      "eas": {
+        "projectId": "9843f435-a82b-41fa-8980-710edf37900c"
+      }
+    },
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.spotme.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "This app needs access to location to show nearby parking spots and share your location when leaving a spot.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "This app needs access to location to show nearby parking spots and share your location when leaving a spot."
+      }
     },
     "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
-      },
-      "edgeToEdgeEnabled": true
+      "package": "com.spotme.app",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "NOTIFICATIONS"
+      ]
     },
-    "web": {
-      "favicon": "./assets/favicon.png"
-    }
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow SpotMe to use your location to show nearby parking spots and share your location when leaving a spot."
+        }
+      ],
+      [
+        "expo-notifications"
+      ],
+      "expo-maps"
+    ]
   }
 }

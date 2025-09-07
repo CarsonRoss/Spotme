@@ -22,6 +22,7 @@ export interface CloudStoredSpot {
   longitude: number;
   radiusMiles: number;
   createdAt?: Date;
+  name?: string;
 }
 
 async function ensureUser(): Promise<string> {
@@ -87,6 +88,7 @@ export async function getSpotsCloud(): Promise<CloudStoredSpot[]> {
       longitude: data.longitude,
       radiusMiles: data.radiusMiles,
       createdAt: data.createdAt?.toDate?.() ?? undefined,
+      name: typeof data.name === 'string' ? data.name : undefined,
     });
   });
   return list;
@@ -99,6 +101,7 @@ export async function addSpotCloud(spot: Omit<CloudStoredSpot, 'id' | 'createdAt
     latitude: spot.latitude,
     longitude: spot.longitude,
     radiusMiles: spot.radiusMiles,
+    name: spot.name ?? null,
     createdAt: serverTimestamp(),
   });
   return ref.id;
@@ -111,4 +114,20 @@ export async function clearSpotsCloud(): Promise<void> {
   const batch = writeBatch(db);
   snap.forEach((d) => batch.delete(d.ref));
   await batch.commit();
+}
+
+export async function updateSpotCloud(spotId: string, updates: Partial<Pick<CloudStoredSpot, 'radiusMiles' | 'name' | 'latitude' | 'longitude'>>): Promise<void> {
+  const uid = await ensureUser();
+  const ref = doc(db, 'userSpots', spotId);
+  const snap = await getDoc(ref);
+  if (!snap.exists() || snap.data()?.userId !== uid) throw new Error('Not authorized');
+  await import('firebase/firestore').then(({ updateDoc }) => updateDoc(ref, updates as any));
+}
+
+export async function deleteSpotCloud(spotId: string): Promise<void> {
+  const uid = await ensureUser();
+  const ref = doc(db, 'userSpots', spotId);
+  const snap = await getDoc(ref);
+  if (!snap.exists() || snap.data()?.userId !== uid) throw new Error('Not authorized');
+  await deleteDoc(ref);
 }

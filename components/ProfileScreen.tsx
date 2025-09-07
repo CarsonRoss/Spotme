@@ -12,16 +12,68 @@ import Glass from './Glass';
 import { colors } from '../theme/colors';
 import { getUserProfileCloud, getSpotsCloud, type CloudStoredSpot } from '../services/cloudStorage';
 import * as ExpoLocation from 'expo-location';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import MapView, { Marker, Circle } from 'react-native-maps';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+
+// Simple card component for displaying a spot with a non-interactive map and city label
+function SpotCard({ spot, city, onEdit }: { spot: CloudStoredSpot; city: string; onEdit: (spot: CloudStoredSpot) => void }) {
+  const MI_TO_METERS = 1609.34;
+  const metersPerDegLat = 111320; // approx
+  const metersPerDegLon = 111320 * Math.max(0.00001, Math.cos((spot.latitude * Math.PI) / 180));
+  const radiusMeters = (spot.radiusMiles || 0.3) * MI_TO_METERS;
+  const radiusDegLat = radiusMeters / metersPerDegLat;
+  const radiusDegLon = radiusMeters / metersPerDegLon;
+  const angular = Math.max(radiusDegLat, radiusDegLon); // use the larger angular radius
+  const PAD = 2.6; // 2x for diameter + ~30% padding
+  const region = {
+    latitude: spot.latitude,
+    longitude: spot.longitude,
+    latitudeDelta: Math.max(0.005, angular * PAD),
+    longitudeDelta: Math.max(0.005, angular * PAD),
+  };
+
+  return (
+    <Glass style={styles.mapCard}>
+      <TouchableOpacity style={styles.editPill} onPress={() => onEdit(spot)}>
+        <Text style={styles.editPillText}>Edit</Text>
+      </TouchableOpacity>
+      <View style={styles.mapSquare}>
+        <MapView style={styles.map} pointerEvents="none" initialRegion={region}>
+          <Marker coordinate={{ latitude: spot.latitude, longitude: spot.longitude }} />
+          <Circle
+            center={{ latitude: spot.latitude, longitude: spot.longitude }}
+            radius={radiusMeters}
+            strokeColor="rgba(52,199,89,0.9)"
+            fillColor="rgba(52,199,89,0.15)"
+          />
+        </MapView>
+      </View>
+      {!!spot.name && <Text style={styles.nameAbove}>{spot.name}</Text>}
+      <Text style={styles.cityBelow}>{city}</Text>
+    </Glass>
+  );
+}
 
 export default function ProfileScreen() {
+  const insets = useSafeAreaInsets();
+  const navigation = useNavigation<any>();
   const [userProfile, setUserProfile] = useState<{ fullName?: string } | null>(null);
   const [spots, setSpots] = useState<CloudStoredSpot[]>([]);
   const [location, setLocation] = useState<string>('');
+  const [spotCities, setSpotCities] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadUserData();
   }, []);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      loadUserData();
+      return () => {};
+    }, [])
+  );
 
   const loadUserData = async () => {
     try {
@@ -47,6 +99,34 @@ export default function ProfileScreen() {
           }
         } catch {}
       }
+
+      // Resolve city for each spot (simple reverse geocode per spot)
+      try {
+        const pairs = await Promise.all(
+          list.map(async (s) => {
+            try {
+              const results = await ExpoLocation.reverseGeocodeAsync({
+                latitude: s.latitude,
+                longitude: s.longitude,
+              });
+      
+              const f = results?.[0];
+              if (!f) return [s.id || `${s.latitude},${s.longitude}`, ''] as const;
+      
+              const city = [f.city || f.subregion, f.region]
+                .filter(Boolean)
+                .join(', ');
+      
+              return [s.id || `${s.latitude},${s.longitude}`, city] as const;
+            } catch {
+              return [s.id || `${s.latitude},${s.longitude}`, ''] as const;
+            }
+          })
+        );
+      
+        const map = Object.fromEntries(pairs.filter(([_, city]) => city));
+        setSpotCities(map);
+      } catch {}
     } catch (error) {
       console.error('Error loading user data:', error);
     } finally {
@@ -74,50 +154,45 @@ export default function ProfileScreen() {
   }
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={styles.container} contentContainerStyle={{ paddingTop: insets.top + 12 }}>
       <Glass style={styles.header}>
-        <Text style={styles.title}>Profile</Text>
-        <Text style={styles.subtitle}>Your SpotMe account</Text>
-      </Glass>
-
-      <Glass style={styles.infoSection}>
-        <Text style={styles.sectionTitle}>Account Information</Text>
-        
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Name</Text>
-          <Text style={styles.infoValue}>{userProfile.fullName || 'Not set'}</Text>
-        </View>
+        <Text style={styles.title}>{userProfile.fullName || 'Not set'}</Text>
         {location ? (
           <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Location</Text>
             <Text style={styles.infoValue}>{location}</Text>
           </View>
         ) : null}
       </Glass>
 
-      <Glass style={styles.infoSection}>
-        <Text style={styles.sectionTitle}>My Spots</Text>
-        {loading ? (
-          <View style={{ paddingVertical: 16, alignItems: 'center' }}>
-            <ActivityIndicator color={colors.textPrimary} />
-            <Text style={{ color: colors.textSecondary, marginTop: 8 }}>Loading spots…</Text>
-          </View>
-        ) : spots.length === 0 ? (
-          <Text style={{ color: colors.textSecondary }}>No spots saved yet.</Text>
-        ) : (
-          <View style={{ gap: 12 }}>
-            {spots.map((s) => (
-              <View key={s.id} style={styles.spotRow}>
-                <Text style={styles.spotIcon}>📍</Text>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.spotTitle}>{formatLatLon(s.latitude, s.longitude)}</Text>
-                  <Text style={styles.spotMeta}>{s.radiusMiles.toFixed(1)} mi radius</Text>
-                </View>
-              </View>
-            ))}
-          </View>
-        )}
-      </Glass>
+      <View style={styles.sectionHeaderRow}>
+        <Text style={[styles.sectionTitle, styles.sectionHeader]}>My Spots</Text>
+        <TouchableOpacity
+          style={styles.addSpotButton}
+          onPress={() => navigation.navigate('AddSpot')}
+        >
+          <Text style={styles.addSpotButtonText}>+</Text>
+        </TouchableOpacity>
+      </View>
+      {loading ? (
+        <View style={{ paddingVertical: 16, alignItems: 'center' }}>
+          <ActivityIndicator color={colors.textPrimary} />
+          <Text style={{ color: colors.textSecondary, marginTop: 8 }}>Loading spots…</Text>
+        </View>
+      ) : spots.length === 0 ? (
+        <Text style={{ color: colors.textSecondary, marginHorizontal: 16 }}>No spots saved yet.</Text>
+      ) : (
+        <View style={[styles.grid, styles.gridWrap]}>
+          {spots.map((s) => (
+            <View key={s.id || `${s.latitude},${s.longitude}` } style={styles.gridItem}>
+              <SpotCard
+                spot={s}
+                city={spotCities[s.id || `${s.latitude},${s.longitude}`] || ''}
+                onEdit={(spot) => navigation.navigate('EditSpot', { spotId: spot.id, name: spot.name || '', radiusMiles: spot.radiusMiles })}
+              />
+            </View>
+          ))}
+        </View>
+      )}
 
     </ScrollView>
   );
@@ -155,7 +230,7 @@ const styles = StyleSheet.create({
   },
   header: {
     padding: 20,
-    alignItems: 'center',
+    alignItems: 'flex-start',
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
     margin: 16,
@@ -203,6 +278,27 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     marginBottom: 10,
   },
+  sectionHeader: {
+    marginHorizontal: 16,
+  },
+  sectionHeaderRow: {
+    marginHorizontal: 16,
+    marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  addSpotButton: {
+    backgroundColor: '#0A84FF',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  addSpotButtonText: {
+    color: '#ffffff',
+    fontWeight: '800',
+    fontSize: 12,
+  },
   infoRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -221,6 +317,25 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     fontWeight: '600',
   },
+  mapCard: {
+    overflow: 'hidden',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 10,
+  },
+  mapSquare: { aspectRatio: 1, borderRadius: 10, overflow: 'hidden', borderWidth: 1, borderColor: colors.border },
+  map: {
+    width: '100%',
+    height: '100%',
+  },
+  cityBelow: { marginTop: 8, color: colors.textPrimary, fontWeight: '400' },
+  nameAbove: { marginTop: 10, color: colors.textPrimary, fontWeight: '800' },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  gridItem: { width: '48%' },
+  gridWrap: { paddingHorizontal: 16 },
+  editPill: { position: 'absolute', right: 10, top: 10, zIndex: 5, backgroundColor: 'rgba(10,132,255,0.95)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999 },
+  editPillText: { color: '#ffffff', fontWeight: '800', fontSize: 11 },
   spotRow: {
     flexDirection: 'row',
     alignItems: 'center',

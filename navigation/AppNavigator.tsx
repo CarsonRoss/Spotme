@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, DarkTheme } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -11,82 +11,20 @@ import { getOnboardingCompletedCloud } from '../services/cloudStorage';
 
 // Screens
 import OnboardingScreen from '../components/OnboardingScreen';
-import MySpotsScreen from '../components/MySpotsScreen';
-import FindSpotScreen from '../components/FindSpotScreen';
-import HistoryScreen from '../components/HistoryScreen';
-import SettingsScreen from '../components/SettingsScreen';
+import AddSpotScreen from '../components/AddSpotScreen';
 import ProfileScreen from '../components/ProfileScreen';
+import EditSpotScreen from '../components/EditSpotScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
-function TabNavigator() {
+// We remove tabs and use a focused Add Spot flow instead
+// Focused add spot screen; single page flow
+function AddSpotStack() {
   return (
-    <Tab.Navigator
-      screenOptions={{
-        tabBarActiveTintColor: colors.textPrimary,
-        tabBarInactiveTintColor: colors.textSecondary,
-        tabBarStyle: {
-          backgroundColor: 'transparent',
-          borderTopWidth: 0,
-          position: 'absolute',
-          elevation: 0,
-        },
-        tabBarBackground: () => (
-          <BlurView tint="dark" intensity={30} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.2)' }} />
-        ),
-        headerTintColor: colors.textPrimary,
-        headerTitleStyle: {
-          fontWeight: '800',
-          color: colors.textPrimary,
-        },
-        headerTransparent: true,
-        headerBackground: () => (
-          <BlurView tint="dark" intensity={30} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.2)' }} />
-        ),
-      }}
-    >
-      <Tab.Screen
-        name="Find"
-        component={FindSpotScreen}
-        options={{
-          title: 'Find',
-          tabBarIcon: ({ color, size }) => (
-            <Text style={{ color, fontSize: size }}>🔍</Text>
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="MySpots"
-        component={MySpotsScreen}
-        options={{
-          title: 'My Spots',
-          tabBarIcon: ({ color, size }) => (
-            <Text style={{ color, fontSize: size }}>📍</Text>
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="History"
-        component={HistoryScreen}
-        options={{
-          title: 'History',
-          tabBarIcon: ({ color, size }) => (
-            <Text style={{ color, fontSize: size }}>🕘</Text>
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="Settings"
-        component={SettingsScreen}
-        options={{
-          title: 'Settings',
-          tabBarIcon: ({ color, size }) => (
-            <Text style={{ color, fontSize: size }}>⚙️</Text>
-          ),
-        }}
-      />
-    </Tab.Navigator>
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="AddSpotInner" component={AddSpotScreen} />
+    </Stack.Navigator>
   );
 }
 
@@ -120,26 +58,30 @@ export default function AppNavigator() {
     );
   }
 
+  const navTheme = {
+    ...DarkTheme,
+    colors: {
+      ...DarkTheme.colors,
+      primary: colors.textPrimary,
+      background: colors.background,
+      card: colors.surface,
+      text: colors.textPrimary,
+      border: colors.border,
+      notification: colors.accent,
+    },
+  } as const;
+
   return (
-    <NavigationContainer theme={{
-      dark: true,
-      colors: {
-        primary: colors.textPrimary,
-        background: colors.background,
-        card: colors.surface,
-        text: colors.textPrimary,
-        border: colors.border,
-        notification: colors.accent,
-      },
-    } as any}>
-      <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName={showOnboarding ? 'Onboarding' : 'Main'}>
+    <NavigationContainer theme={navTheme}>
+      <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName={showOnboarding ? 'Onboarding' : 'Profile'}>
         {showOnboarding && (
           <Stack.Screen name="Onboarding" children={({ navigation }) => (
             <OnboardingScreen onDone={() => { setShowOnboarding(false); navigation.replace('Profile'); }} />
           )} />
         )}
-        <Stack.Screen name="Main" component={TabNavigator} />
         <Stack.Screen name="Profile" component={ProfileScreen} />
+        <Stack.Screen name="EditSpot" component={EditSpotScreen} />
+        <Stack.Screen name="AddSpot" component={AddSpotStack} />
       </Stack.Navigator>
     </NavigationContainer>
   );

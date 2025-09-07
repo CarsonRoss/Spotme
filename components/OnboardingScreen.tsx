@@ -32,7 +32,7 @@ export default function OnboardingScreen({ onDone }: OnboardingProps) {
   const [mapRegion, setMapRegion] = useState<Region | null>(null);
   const [selectedCoord, setSelectedCoord] = useState<{ latitude: number; longitude: number } | null>(null);
   const [loadingMap, setLoadingMap] = useState(false);
-  const canUseNativeMap = Platform.OS === 'ios' && Constants.appOwnership !== 'expo';
+  // Always allow map UI during onboarding; works in Expo Go with react-native-maps
   const MI_TO_METERS = 1609.34;
   const MIN_RADIUS = 0.1;
   const MAX_RADIUS = 2;
@@ -629,7 +629,7 @@ export default function OnboardingScreen({ onDone }: OnboardingProps) {
             </View>
           )}
 
-          {canUseNativeMap && mapRegion && (
+          {mapRegion && (
             <View style={{ height: 260, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: colors.border, marginTop: 8 }}>
               <MapView
                 style={{ flex: 1 }}
@@ -660,11 +660,7 @@ export default function OnboardingScreen({ onDone }: OnboardingProps) {
             </View>
           )}
 
-          {!canUseNativeMap && (
-            <View style={{ paddingVertical: 8 }}>
-              <Text style={{ color: colors.textSecondary }}>Apple Maps requires a dev build. Run a dev build to pick on map.</Text>
-            </View>
-          )}
+          
         </Glass>
         </ScrollView>
         </TouchableWithoutFeedback>

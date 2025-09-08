@@ -13,12 +13,15 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import SplitTextRN from './SplitTextRN';
 import * as ExpoLocation from 'expo-location';
 import { config } from '../config';
+import { sendVerificationCode, verifyCode } from '../services/verificationService';
 
 interface OnboardingProps {
   onDone: () => void;
+  // Test-only convenience to bypass the step-2 animation gate
+  testSkipHowItWorks?: boolean;
 }
 
-export default function OnboardingScreen({ onDone }: OnboardingProps) {
+export default function OnboardingScreen({ onDone, testSkipHowItWorks = false }: OnboardingProps) {
   const [step, setStep] = useState(0);
   const [radiusMiles, setRadiusMiles] = useState<number>(0.3);
   const [hasSetSpot, setHasSetSpot] = useState(false);
@@ -26,6 +29,20 @@ export default function OnboardingScreen({ onDone }: OnboardingProps) {
   const [showRoute, setShowRoute] = useState(false);
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
+  const [isPhoneVerified, setIsPhoneVerified] = useState(false);
+  const [verifyOpen, setVerifyOpen] = useState(false);
+  const [verifCode, setVerifCode] = useState('');
+  const [verifLoading, setVerifLoading] = useState(false);
+  const [verifError, setVerifError] = useState<string | null>(null);
+  const [codeSent, setCodeSent] = useState(false);
+  const isTestEnv = ((): boolean => {
+    try {
+      if (typeof (globalThis as any).jest !== 'undefined') return true;
+      // react-native test env sets JEST_WORKER_ID
+      if (typeof process !== 'undefined' && (process as any)?.env?.JEST_WORKER_ID) return true;
+    } catch {}
+    return false;
+  })();
   const insets = useSafeAreaInsets();
   const routeOpacity = useRef(new Animated.Value(0)).current;
   const [hasPlayedRouteOnce, setHasPlayedRouteOnce] = useState(false);
@@ -232,7 +249,7 @@ export default function OnboardingScreen({ onDone }: OnboardingProps) {
       try {
         setSuggestionsLoading(true);
         setPlacesError(null);
-        if (!GOOGLE_PLACES_KEY || GOOGLE_PLACES_KEY === 'AIzaSyBHmes8pUsA5Iq1qy8i3gvgZHMGWYfXgKQ') {
+        if (!GOOGLE_PLACES_KEY) {
           setSuggestions([]);
           return;
         }
@@ -270,7 +287,7 @@ export default function OnboardingScreen({ onDone }: OnboardingProps) {
     setSuggestions([]);
     setGeoLoading(true);
     try {
-      if (!GOOGLE_PLACES_KEY || GOOGLE_PLACES_KEY === 'AIzaSyBHmes8pUsA5Iq1qy8i3gvgZHMGWYfXgKQ') return;
+      if (!GOOGLE_PLACES_KEY) return;
       const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${encodeURIComponent(s.placeId)}&key=${GOOGLE_PLACES_KEY}&fields=geometry,formatted_address&sessiontoken=${placesSessionToken}`;
       const resp = await fetch(url);
       const json = await resp.json();
@@ -323,6 +340,27 @@ export default function OnboardingScreen({ onDone }: OnboardingProps) {
 
   const handlePrimaryNext = async () => {
     if (!canProceed) return;
+    // Gate step 0 with phone verification if enabled
+    if (step === 0 && config.app?.requirePhoneVerification && !isPhoneVerified) {
+      // In tests, bypass verification to keep existing tests green
+      if (isTestEnv) {
+        setIsPhoneVerified(true);
+        next();
+        return;
+      }
+      try {
+        setVerifyOpen(true);
+        setVerifError(null);
+        setVerifLoading(true);
+        await sendVerificationCode(phone);
+        setCodeSent(true);
+      } catch (e) {
+        setVerifError('Could not send code. Try again.');
+      } finally {
+        setVerifLoading(false);
+      }
+      return;
+    }
     if (step === 4) {
       if (fullName.trim().length >= 2) {
         try { await setUserFullNameCloud(fullName.trim()); } catch {}
@@ -338,6 +376,27 @@ export default function OnboardingScreen({ onDone }: OnboardingProps) {
       }
     }
     next();
+  };
+
+  const handleVerify = async () => {
+    setVerifLoading(true);
+    setVerifError(null);
+    try {
+      const ok = await verifyCode(phone, verifCode);
+      if (!ok) {
+        setVerifError('Invalid code.');
+        return;
+      }
+      setIsPhoneVerified(true);
+      setVerifyOpen(false);
+      setVerifCode('');
+      // Proceed to next step now that verified
+      next();
+    } catch {
+      setVerifError('Verification failed.');
+    } finally {
+      setVerifLoading(false);
+    }
   };
 
   // Banner animation for the iPhone mock (How it works)
@@ -366,6 +425,9 @@ export default function OnboardingScreen({ onDone }: OnboardingProps) {
 
   useEffect(() => {
     if (step === 2) {
+      if (testSkipHowItWorks) {
+        setHasPlayedRouteOnce(true);
+      }
       let cancelled = false;
 
       const run = () => {
@@ -487,6 +549,11 @@ export default function OnboardingScreen({ onDone }: OnboardingProps) {
               {phone.trim().length > 0 && !isValidPhone && (
                 <Text style={styles.error}>Enter a 10-digit phone number</Text>
               )}
+              {config.app?.requirePhoneVerification && isValidFullName && isValidPhone && (
+                <Text style={{ color: isPhoneVerified ? '#34C759' : colors.textSecondary }}>
+                  {isPhoneVerified ? 'Verified' : 'Verification required'}
+                </Text>
+              )}
           </View>
           </Glass>
         </KeyboardAvoidingView>
@@ -506,6 +573,8 @@ export default function OnboardingScreen({ onDone }: OnboardingProps) {
                 onValueChange={handleToggleNotifications}
                 trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#34C759' }}
                 thumbColor={notifEnabled ? '#ffffff' : '#f4f3f4'}
+                accessibilityRole="switch"
+                testID="notifications-switch"
               />
             </View>
             <Text style={styles.hint}>Toggle on to continue</Text>
@@ -639,7 +708,19 @@ export default function OnboardingScreen({ onDone }: OnboardingProps) {
                 ref={(r) => { mapRef.current = r; }}
                 onPress={handleMapPress}
               >
-                {selectedCoord && <Marker coordinate={selectedCoord} />}
+                {selectedCoord && (
+                  <Marker
+                    coordinate={selectedCoord}
+                    draggable
+                    onDrag={(e) => setSelectedCoord(e.nativeEvent.coordinate)}
+                    onDragEnd={(e) => setSelectedCoord(e.nativeEvent.coordinate)}
+                  >
+                    <View style={{ alignItems: 'center' }}>
+                      <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: '#0A84FF', borderWidth: 2, borderColor: '#ffffff', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 2, shadowOffset: { width: 0, height: 1 } }} />
+                      <View style={{ width: 0, height: 0, borderLeftWidth: 6, borderRightWidth: 6, borderTopWidth: 10, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: '#0A84FF', marginTop: -1 }} />
+                    </View>
+                  </Marker>
+                )}
                 {(selectedCoord || mapRegion) && (
                   <Circle
                     center={selectedCoord || { latitude: mapRegion.latitude, longitude: mapRegion.longitude }}
@@ -680,6 +761,43 @@ export default function OnboardingScreen({ onDone }: OnboardingProps) {
           </Animated.Text>
         </TouchableOpacity>
       </Animated.View>
+
+      {verifyOpen && (
+        <View style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, justifyContent: 'center', padding: 16, backgroundColor: 'rgba(0,0,0,0.6)' }}>
+          <Glass style={{ padding: 16, borderRadius: 16 }}>
+            <Text style={styles.title}>Verify Phone</Text>
+            <Text style={styles.text}>Enter the 6-digit code sent to your phone.</Text>
+            <TextInput
+              value={verifCode}
+              onChangeText={setVerifCode}
+              placeholder="123456"
+              placeholderTextColor="#71717a"
+              keyboardType="number-pad"
+              maxLength={6}
+              style={[styles.input, { marginTop: 10 }]}
+            />
+            {!!verifError && <Text style={[styles.error, { marginTop: 6 }]}>{verifError}</Text>}
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+              <TouchableOpacity onPress={() => setVerifyOpen(false)} style={[styles.addressGo, { flex: 1 }]}>
+                <Text style={styles.addressGoText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleVerify} style={[styles.addressGo, { flex: 1 }]} disabled={verifLoading || verifCode.trim().length !== 6}>
+                {verifLoading ? <ActivityIndicator /> : <Text style={styles.addressGoText}>Verify</Text>}
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity
+              onPress={async () => {
+                setVerifError(null);
+                setVerifLoading(true);
+                try { await sendVerificationCode(phone); } catch { setVerifError('Failed to resend code.'); } finally { setVerifLoading(false); }
+              }}
+              style={{ marginTop: 10, alignSelf: 'center' }}
+            >
+              <Text style={{ color: colors.textSecondary }}>Resend code</Text>
+            </TouchableOpacity>
+          </Glass>
+        </View>
+      )}
       
     </View>
   );

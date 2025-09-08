@@ -15,6 +15,7 @@ import * as ExpoLocation from 'expo-location';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MapView, { Marker, Circle } from 'react-native-maps';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { LinearGradient } from 'expo-linear-gradient';
 
 // Simple card component for displaying a spot with a non-interactive map and city label
 function SpotCard({ spot, city, onEdit }: { spot: CloudStoredSpot; city: string; onEdit: (spot: CloudStoredSpot) => void }) {
@@ -35,9 +36,6 @@ function SpotCard({ spot, city, onEdit }: { spot: CloudStoredSpot; city: string;
 
   return (
     <Glass style={styles.mapCard}>
-      <TouchableOpacity style={styles.editPill} onPress={() => onEdit(spot)}>
-        <Text style={styles.editPillText}>Edit</Text>
-      </TouchableOpacity>
       <View style={styles.mapSquare}>
         <MapView style={styles.map} pointerEvents="none" initialRegion={region}>
           <Marker coordinate={{ latitude: spot.latitude, longitude: spot.longitude }} />
@@ -51,6 +49,9 @@ function SpotCard({ spot, city, onEdit }: { spot: CloudStoredSpot; city: string;
       </View>
       {!!spot.name && <Text style={styles.nameAbove}>{spot.name}</Text>}
       <Text style={styles.cityBelow}>{city}</Text>
+      <TouchableOpacity style={styles.editPill} onPress={() => onEdit(spot)}>
+          <Text style={styles.editPillText}>Edit</Text>
+        </TouchableOpacity>
     </Glass>
   );
 }
@@ -166,11 +167,10 @@ export default function ProfileScreen() {
 
       <View style={styles.sectionHeaderRow}>
         <Text style={[styles.sectionTitle, styles.sectionHeader]}>My Spots</Text>
-        <TouchableOpacity
-          style={styles.addSpotButton}
-          onPress={() => navigation.navigate('AddSpot')}
-        >
-          <Text style={styles.addSpotButtonText}>+</Text>
+        <TouchableOpacity style={styles.addSpotButtonWrap} onPress={() => navigation.navigate('AddSpot')}>
+          <LinearGradient colors={["#0A84FF", "#0A84FF"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.addSpotButton}>
+            <Text style={styles.addSpotPlus}>+</Text>
+          </LinearGradient>
         </TouchableOpacity>
       </View>
       {loading ? (
@@ -187,7 +187,7 @@ export default function ProfileScreen() {
               <SpotCard
                 spot={s}
                 city={spotCities[s.id || `${s.latitude},${s.longitude}`] || ''}
-                onEdit={(spot) => navigation.navigate('EditSpot', { spotId: spot.id, name: spot.name || '', radiusMiles: spot.radiusMiles })}
+                onEdit={(spot) => navigation.navigate('EditSpot', { spotId: spot.id, name: spot.name || '', radiusMiles: spot.radiusMiles, latitude: spot.latitude, longitude: spot.longitude })}
               />
             </View>
           ))}
@@ -288,17 +288,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  addSpotButtonWrap: { padding: 2 },
   addSpotButton: {
-    backgroundColor: '#0A84FF',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#0A84FF',
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
   },
-  addSpotButtonText: {
-    color: '#ffffff',
-    fontWeight: '800',
-    fontSize: 12,
-  },
+  addSpotPlus: { color: '#ffffff', fontWeight: '500', fontSize: 20, lineHeight: 20 },
   infoRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -324,7 +327,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     padding: 10,
   },
-  mapSquare: { aspectRatio: 1, borderRadius: 10, overflow: 'hidden', borderWidth: 1, borderColor: colors.border },
+  mapSquare: { aspectRatio: 1, borderRadius: 10, overflow: 'hidden', borderWidth: 1, borderColor: colors.border, position: 'relative' },
   map: {
     width: '100%',
     height: '100%',
@@ -334,7 +337,7 @@ const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   gridItem: { width: '48%' },
   gridWrap: { paddingHorizontal: 16 },
-  editPill: { position: 'absolute', right: 10, top: 10, zIndex: 5, backgroundColor: 'rgba(10,132,255,0.95)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999 },
+  editPill: { position: 'absolute', right: 10, bottom: 7, zIndex: 5, backgroundColor: 'rgba(10,132,255,0.95)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999 },
   editPillText: { color: '#ffffff', fontWeight: '800', fontSize: 11 },
   spotRow: {
     flexDirection: 'row',

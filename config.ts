@@ -20,13 +20,20 @@ export const config = {
   // App Configuration
   app: {
     name: "SpotMe",
-    version: "1.0.0"
+    version: "1.0.0",
+    requirePhoneVerification: true
   },
   
   // Points System
   points: {
     shareSpot: 5,
     claimSpot: 1
+  },
+
+  // Twilio (backend endpoints you control)
+  twilio: {
+    startUrl: "", // POST { phone }
+    checkUrl: ""  // POST { phone, code } -> { approved: boolean }
   }
 };
 

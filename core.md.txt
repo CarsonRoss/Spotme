@@ -80,6 +80,8 @@ You will follow this structured workflow for every task:
 -   At the end of a session (when requested via a `retro` command), you will reflect on the interaction to identify durable lessons.
 -   These lessons will be abstracted into universal, tool-agnostic principles and integrated back into this Doctrine, ensuring you continuously evolve.
 
+### 6 · RUN THE TEST SUITE AFTER CHANGES
+
 ---
 
 ## C · FAILURE ANALYSIS & REMEDIATION

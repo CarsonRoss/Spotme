@@ -104,12 +104,12 @@ export default function AddSpotScreen({ embedded = false, onDone, onBack }: AddS
   };
 
   useEffect(() => {
-    // Auto-center whenever a spot is chosen or radius changes
+    // Auto-center on radius changes (to keep full circle visible)
     const center = selectedCoord || (mapRegion ? { latitude: mapRegion.latitude, longitude: mapRegion.longitude } : null);
     if (!center || !mapRef.current) return;
     animateToCenterWithRadius(center);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCoord, radiusMiles]);
+  }, [radiusMiles]);
 
   const handleAddressGo = async () => {
     const q = address.trim();
@@ -169,7 +169,7 @@ export default function AddSpotScreen({ embedded = false, onDone, onBack }: AddS
       <View style={{ height: (embedded ? 56 : insets.top + 56) }} />
       <Glass style={styles.card}>
         <Text style={styles.title}>Add a Spot</Text>
-        <Text style={styles.sub}>Search an address or tap the map. Adjust the radius.</Text>
+        <Text style={styles.sub}>Search an address or tap the map. Hold and drag pin to fine-tune location.</Text>
 
         <View style={{ marginTop: 8 }}>
           <View style={styles.addressRow}>
@@ -204,7 +204,23 @@ export default function AddSpotScreen({ embedded = false, onDone, onBack }: AddS
               showsUserLocation
               ref={(r) => { mapRef.current = r; }}
             >
-              {selectedCoord && <Marker coordinate={selectedCoord} />}
+              {selectedCoord && (
+                <Marker
+                  coordinate={selectedCoord}
+                  draggable
+                  onDrag={(e) => setSelectedCoord(e.nativeEvent.coordinate)}
+                  onDragEnd={(e) => {
+                    const c = e.nativeEvent.coordinate;
+                    setSelectedCoord(c);
+                    animateToCenterWithRadius(c);
+                  }}
+                >
+                  <View style={{ alignItems: 'center' }}>
+                    <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: '#0A84FF', borderWidth: 2, borderColor: '#ffffff', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 2, shadowOffset: { width: 0, height: 1 } }} />
+                    <View style={{ width: 0, height: 0, borderLeftWidth: 6, borderRightWidth: 6, borderTopWidth: 10, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: '#0A84FF', marginTop: -1 }} />
+                  </View>
+                </Marker>
+              )}
               {(selectedCoord || mapRegion) && (
                 <Circle
                   center={selectedCoord || { latitude: mapRegion.latitude, longitude: mapRegion.longitude }}

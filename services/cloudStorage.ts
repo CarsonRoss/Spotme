@@ -116,7 +116,10 @@ export async function clearSpotsCloud(): Promise<void> {
   await batch.commit();
 }
 
-export async function updateSpotCloud(spotId: string, updates: Partial<Pick<CloudStoredSpot, 'radiusMiles' | 'name' | 'latitude' | 'longitude'>>): Promise<void> {
+export async function updateSpotCloud(
+  spotId: string,
+  updates: Partial<{ radiusMiles: number; name: string | null; latitude: number; longitude: number }>
+): Promise<void> {
   const uid = await ensureUser();
   const ref = doc(db, 'userSpots', spotId);
   const snap = await getDoc(ref);

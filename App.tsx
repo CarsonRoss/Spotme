@@ -3,9 +3,19 @@ import 'react-native-gesture-handler';
 import { StatusBar } from 'expo-status-bar';
 import { Keyboard, View, Pressable } from 'react-native';
 import AppNavigator from './navigation/AppNavigator';
+import useParkedNotifier from './components/hooks/useParkedNotifier';
+import { registerNotificationHandlers, registerForPushNotificationsAsync } from './services/notificationService';
 
 export default function App() {
   const [keyboardVisible, setKeyboardVisible] = useState(false);
+  useParkedNotifier();
+  useEffect(() => { registerNotificationHandlers(); }, []);
+  useEffect(() => {
+    (async () => {
+      const token = await registerForPushNotificationsAsync();
+      console.log('Expo push token:', token);
+    })();
+  }, []);
 
   useEffect(() => {
     const show = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));

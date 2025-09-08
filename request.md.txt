@@ -1,4 +1,5 @@
-{I want each row to have two columns, make each spot card a squre}
+{ Write a test for this functionality. They need to be going 0 mph for 1 minute straight. }
+
 ---
 
 ## **Mission Briefing: Standard Operating Protocol**
